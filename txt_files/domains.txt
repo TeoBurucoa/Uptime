@@ -1,0 +1,4 @@
+https | www.novaldi.com | teoburu64@gmail.com | Site Novaldi
+ping | 85.31.155.17 | teoburu64@gmail.com | Serveur IP
+ping | cloud05.novadi.fr | teoburu64@gmail.com | Cloud 05
+ping | cloud05.novaldi.fr/xabixuri | teoburu64@gmail.com | Cloud 05 xabixuri
