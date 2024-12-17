@@ -39,9 +39,14 @@ exemple de commande :
 ### Utilisation via Docker
 
 Les arguments doivent être rentrés dans le fichier `.env` sous la forme:  
-```FROM_EMAIL=  
+```
+FROM_EMAIL=  
 EMAIL_PASSWORD=  
-DOMAINS_FILE=  ```
+DOMAINS_FILE=
+```
+Les commandes à rentrer sont
+`docker build . -t <nom de l'image>`  
+`docker run  --env-file .env <nom de l'image>`
 
 ---
 
