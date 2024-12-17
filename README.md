@@ -3,11 +3,11 @@
 Ce script permet, à partir d'un fichier txt contenant les domaines à surveiller, d'envoyer des alertes par email si un des domaines n'est plus accessible
 par le biais d'un ping ou d'un http(s).
 
-Ce fichier txt doit être de la forme :
+Ce fichier txt doit être de la forme :  
 Protocole | domaine | email | libellé
 
-exemple du fichier txt:
-ping | cloud05.novaldi.fr | teoburu64@gmail.com | Exemple Surfrider
+exemple du fichier txt:  
+ping | cloud05.novaldi.fr | teoburu64@gmail.com | Exemple Surfrider  
 http | cloud05.novaldi.fr/xabixuri | teoburu64@gmail.com | Exemple2 CCI
 
 ---
@@ -26,15 +26,15 @@ Valeurs par défaut au sein du code :
 
 Pour lancer la commande, il y a 3 arguments à passer :
 
---domains : le chemin vers le fichier txt contenant les domaines à surveiller
---from-email : l'email à partir duquel les alertes seront envoyées
---password (optionnel) : le mot de passe de l'email à partir duquel les alertes seront envoyées 
+--domains : le chemin vers le fichier txt contenant les domaines à surveiller  
+--from-email : l'email à partir duquel les alertes seront envoyées  
+--password (optionnel) : le mot de passe de l'email à partir duquel les alertes seront envoyées   
 
 Dans la mesure du possible, il est conseillé de ne pas passer le mot de passe en argument, mais de le rentrer ensuite
 lorsqu'il est demandé au moment de la commande.
 
 exemple de commande :
-python main.py --domains domains.txt --from-email teoburu64@gmail.com --password
+`python main.py --domains domains.txt --from-email teoburu64@gmail.com --password`
 
 ### Utilisation via Docker
 
@@ -54,7 +54,7 @@ Pour chaque nom de donmaine ou adresse ip: (ligne 61)
         - il va déplacer le fichier d'erreur dans le dossier archive (move_file_from_alert_to_archive())
     - si le domaine est toujours en erreur:
         - Il ne va rien faire
-- si le nom de domaine n'a aps encore été repéré comme étant en erreur:
+- si le nom de domaine n'a pas encore été repéré comme étant en erreur:
     - si le domaine est accessible:
         - il ne va rien faire
     - si le domaine est en erreur:
