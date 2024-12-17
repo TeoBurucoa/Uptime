@@ -94,6 +94,8 @@ def check_domain_status(
                             move_file_from_alert_to_archive(
                                 filename, alert_folder, archive_folder, recovery_msg
                             )
+                        else:
+                            logger.error(f"{check_type}: {domain} returned status code {response.status_code} and is still down at {current_time}")
                     except requests.RequestException as e:
                         error_msg = f"{check_type} Alert: Failed to connect to {domain} at {current_time}\nError: {str(e)}"
                         logger.error(error_msg)
@@ -120,6 +122,8 @@ def check_domain_status(
                             move_file_from_alert_to_archive(
                                 filename, alert_folder, archive_folder, recovery_msg
                             )
+                        else:
+                            logger.error(f"{check_type}: {domain} is still down at {current_time}")
                     except subprocess.SubprocessError as e:
                         error_msg = f"{check_type} Alert: Error while pinging {domain} at {current_time}\nError: {str(e)}"
                         logger.error(error_msg)
