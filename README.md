@@ -26,9 +26,9 @@ Valeurs par défaut au sein du code :
 
 Pour lancer la commande, il y a 3 arguments à passer :
 
---domains : le chemin vers le fichier txt contenant les domaines à surveiller  
---from-email : l'email à partir duquel les alertes seront envoyées  
---password (optionnel) : le mot de passe de l'email à partir duquel les alertes seront envoyées   
+`--domains` : le chemin vers le fichier txt contenant les domaines à surveiller  
+`--from-email` : l'email à partir duquel les alertes seront envoyées  
+`--password` (optionnel) : le mot de passe de l'email à partir duquel les alertes seront envoyées   
 
 Dans la mesure du possible, il est conseillé de ne pas passer le mot de passe en argument, mais de le rentrer ensuite
 lorsqu'il est demandé au moment de la commande.
@@ -38,6 +38,10 @@ exemple de commande :
 
 ### Utilisation via Docker
 
+Les arguments doivent être rentrés dans le fichier `.env` sous la forme:  
+```FROM_EMAIL=  
+EMAIL_PASSWORD=  
+DOMAINS_FILE=  ```
 
 ---
 
