@@ -1,16 +1,28 @@
-README de la commande main.py
+# Utilisation du script Uptime
 
 Ce script permet, à partir d'un fichier txt contenant les domaines à surveiller, d'envoyer des alertes par email si un des domaines n'est plus accessible
 par le biais d'un ping ou d'un http(s).
 
 Ce fichier txt doit être de la forme :
-Protocole | domaine | email 
+Protocole | domaine | email | libellé
 
 exemple du fichier txt:
-ping | cloud05.novaldi.fr | teoburu64@gmail.com
-http | cloud05.novaldi.fr/xabixuri | teoburu64@gmail.com
+ping | cloud05.novaldi.fr | teoburu64@gmail.com | Exemple Surfrider
+http | cloud05.novaldi.fr/xabixuri | teoburu64@gmail.com | Exemple2 CCI
 
 ---
+
+## Faire fonctionner le script
+
+Valeurs par défaut au sein du code :
+- frequency : 300
+- alert_folder : "alerts"
+- archive_folder : "archive"
+- event_type : "alert"
+- erreur_https_file : "erreur_https.txt"
+- erreur_ping_file : "erreur_ping.txt"
+
+### Utilisation via Python
 
 Pour lancer la commande, il y a 3 arguments à passer :
 
@@ -24,19 +36,14 @@ lorsqu'il est demandé au moment de la commande.
 exemple de commande :
 python main.py --domains domains.txt --from-email teoburu64@gmail.com --password
 
-
-Valeurs par défaut au sein du code :
-- frequency : 300
-- alert_folder : "alerts"
-- archive_folder : "archive"
-- event_type : "alert"
-- erreur_https_file : "erreur_https.txt"
-- erreur_ping_file : "erreur_ping.txt"
+### Utilisation via Docker
 
 
 ---
 
-Fonctionnement du script :
+## Explication générale du script :
+
+Le processus de vérification du fonctionnement de site internet est légèrement différente pour un HTTP(S) ou un PING
 
 Le script se lance et va lire le fichier txt passé en argument.
 Il va lire les lignes du fichier txt et va les stocker dans une liste.
