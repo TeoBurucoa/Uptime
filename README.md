@@ -44,7 +44,7 @@ FROM_EMAIL=
 EMAIL_PASSWORD=  
 DOMAINS_FILE=
 ```
-Les commandes à rentrer sont
+Les commandes à rentrer sont:  
 `docker build . -t <nom de l'image>`  
 `docker run  --env-file .env <nom de l'image>`
 
