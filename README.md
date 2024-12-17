@@ -4,17 +4,17 @@ Ce script permet, à partir d'un fichier txt contenant les domaines à surveille
 par le biais d'un ping ou d'un http(s).
 
 Ce fichier txt doit être de la forme :  
-Protocole | domaine | email | libellé
+`Protocole | domaine | email | libellé`
 
 exemple du fichier txt:  
-ping | cloud05.novaldi.fr | teoburu64@gmail.com | Exemple Surfrider  
-http | cloud05.novaldi.fr/xabixuri | teoburu64@gmail.com | Exemple2 CCI
+`ping | cloud05.novaldi.fr | teoburu64@gmail.com | Exemple Surfrider`  
+`http | cloud05.novaldi.fr/xabixuri | teoburu64@gmail.com | Exemple2 CCI`
 
 ---
 
 ## Faire fonctionner le script
 
-Valeurs par défaut au sein du code :
+Valeurs par défaut au sein du code :  
 - frequency : 300
 - alert_folder : "alerts"
 - archive_folder : "archive"
@@ -24,7 +24,7 @@ Valeurs par défaut au sein du code :
 
 ### Utilisation via Python
 
-Pour lancer la commande, il y a 3 arguments à passer :
+Pour lancer la commande, il y a 3 arguments à passer :  
 
 `--domains` : le chemin vers le fichier txt contenant les domaines à surveiller  
 `--from-email` : l'email à partir duquel les alertes seront envoyées  
@@ -33,7 +33,7 @@ Pour lancer la commande, il y a 3 arguments à passer :
 Dans la mesure du possible, il est conseillé de ne pas passer le mot de passe en argument, mais de le rentrer ensuite
 lorsqu'il est demandé au moment de la commande.
 
-exemple de commande :
+exemple de commande :  
 `python main.py --domains domains.txt --from-email teoburu64@gmail.com --password`
 
 ### Utilisation via Docker
