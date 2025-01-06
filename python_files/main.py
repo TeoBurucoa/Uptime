@@ -137,7 +137,7 @@ def check_domain_status(
                     )
                     if response.status_code != 200:
                         error_info = get_status_info(
-                            "erreur_https.txt", response.status_code
+                            erreur_https_file, response.status_code
                         )
                         error_msg = f"{check_type} Alert: {domain} returned status code {response.status_code} at {current_time}\n{error_info}"
                         logger.error(error_msg)
