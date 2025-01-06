@@ -238,5 +238,4 @@ if __name__ == "__main__":
         args.password if args.password else getpass.getpass("Enter email password: ")
     )  # Get password securely if not provided as argument jgka vvxm sitn vyau
 
-    check_domain_status(domains_to_monitor, from_email, password)
-J
+     check_domain_status(domains_to_monitor, from_email, password)
