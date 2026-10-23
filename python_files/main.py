@@ -1,241 +1,195 @@
-import requests
-import time
-from typing import List
-import logging
+#!/usr/bin/env python3
+from __future__ import annotations
+
 import argparse
-import platform
-import subprocess
 import getpass
+import logging
 import os
+import shutil
+import subprocess
+import sys
+import threading
+import time
+import webbrowser
+from pathlib import Path
 
-# Import email module
-from send_email import send_email
-from txt_to_list import txt_to_list, get_status_info
-from manage_files import check_if_up, create_alert_file, move_file_from_alert_to_archive
-from manage_time import convert_time_to_timestamp, format_duration
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
-    handlers=[logging.StreamHandler()],  # This will output to terminal
-)
+from dashboard import serve
+from monitor import Monitor
+from storage import Database
+
 logger = logging.getLogger(__name__)
 
-# Set up argument parser
-parser = argparse.ArgumentParser(
-    description="Monitor domain status and send email alerts"
-)
-parser.add_argument("--domains", type=str, help="Path to the domains file")
-parser.add_argument(
-    "--from-email", type=str, required=True, help="Email address to send mails from"
-)
-parser.add_argument(
-    "--password", type=str, help="Email password (will prompt if not provided)"
-)
 
-args = parser.parse_args()
-
-
-def check_domain_status(
-    domain_checks: List[List[str]], from_email: str, password: str, frequency: int = 60
-) -> None:
-    """
-    Check domains based on specified check type (HTTP, HTTPS, or ping).
-    Raises an alert if status code is not 200 or ping fails.
-
-    Args:
-        domain_checks: List of [check_type, domain] pairs where
-                     check_type is 'HTTP', 'HTTPS', or 'ping'
-                     from_email is the email to send the email from
-                     password is the password of the email account
-                     frequency is the frequency of the checks in seconds
-    """
-
-    alert_folder = "alerts"
-    archive_folder = "archive"
-    
-    erreur_https_file = "txt_files/erreur_https.txt"
-    erreur_ping_file = "txt_files/erreur_ping.txt"
-    while True:
-        for check_type, domain, to_email, libelle in domain_checks:
-            event_type = "alert"
-            check_type = check_type.upper()  # Normalize check type
-            current_time = time.strftime("%Y-%m-%d %H:%M:%S")
-
-            in_alarm, unix_timestamp_incident_start_time, filename = check_if_up(
-                domain, check_type, current_time, alert_folder
-            )
-
-            if in_alarm:
-                event_type = "recovery"
-                incident_duration_in_seconds = (
-                    convert_time_to_timestamp(current_time) - unix_timestamp_incident_start_time
-                )
-                if check_type in ["HTTP", "HTTPS"]:
-                    try:
-                        response = requests.get(
-                            f"{check_type.lower()}://{domain}", timeout=10
-                        )
-                        if response.status_code == 200:
-                            recovery_msg = f"{check_type}: {domain} returned status code {response.status_code} and is now UP at {current_time}.\nThe incident duration has been {format_duration(incident_duration_in_seconds)}."
-                            logger.info(recovery_msg)
-                            send_email(
-                                from_email,
-                                password,
-                                to_email,
-                                domain,
-                                recovery_msg,
-                                current_time,
-                                event_type,
-                                check_type,
-                                libelle,
-                            )
-                            move_file_from_alert_to_archive(
-                                filename, alert_folder, archive_folder, recovery_msg
-                            )
-                        else:
-                            logger.error(f"{check_type}: {domain} returned status code {response.status_code} and is still down at {current_time}")
-                    except requests.RequestException as e:
-                        error_msg = f"{check_type} Alert: Failed to connect to {domain} at {current_time}\nError: {str(e)}"
-                        logger.error(error_msg)
-
-                elif check_type == "PING":
-                    param = "-n" if platform.system().lower() == "windows" else "-c"
-                    command = ["ping", param, "1", domain]
-                    try:
-                        output = subprocess.run(command, capture_output=True, text=True)
-                        if output.returncode == 0:
-                            recovery_msg = f"{check_type}: {domain} is now UP at {current_time}.\nThe incident duration has been {format_duration(incident_duration_in_seconds)}."
-                            logger.info(recovery_msg)
-                            send_email(
-                                from_email,
-                                password,
-                                to_email,
-                                domain,
-                                recovery_msg,
-                                current_time,
-                                event_type,
-                                check_type,
-                                libelle,
-                            )
-                            move_file_from_alert_to_archive(
-                                filename, alert_folder, archive_folder, recovery_msg
-                            )
-                        else:
-                            logger.error(f"{check_type}: {domain} is still down at {current_time}")
-                    except subprocess.SubprocessError as e:
-                        error_msg = f"{check_type} Alert: Error while pinging {domain} at {current_time}\nError: {str(e)}"
-                        logger.error(error_msg)
-                else:
-                    logger.error(f"Invalid protocol type: {check_type}")
-            # HTTP and HTTPS
-            elif check_type in ["HTTP", "HTTPS"]:
-                try:
-                    response = requests.get(
-                        f"{check_type.lower()}://{domain}", timeout=10
-                    )
-                    if response.status_code != 200:
-                        error_info = get_status_info(
-                            erreur_https_file, response.status_code
-                        )
-                        error_msg = f"{check_type} Alert: {domain} returned status code {response.status_code} at {current_time}\n{error_info}"
-                        logger.error(error_msg)
-                        send_email(
-                            from_email,
-                            password,
-                            to_email,
-                            domain,
-                            error_msg,
-                            current_time,
-                            event_type,
-                            check_type,
-                            libelle,
-                        )
-                        create_alert_file(
-                            domain, check_type, error_msg, current_time, alert_folder
-                        )
-                    else:
-                        logger.info(f"{check_type} OK: {domain} is up")
-
-                except requests.RequestException as e:
-                    error_msg = f"{check_type} Alert: Failed to connect to {domain} at {current_time}\nError: {str(e)}"
-                    logger.error(error_msg)
-                    send_email(
-                        from_email,
-                        password,
-                        to_email,
-                        domain,
-                        error_msg,
-                        current_time,
-                        event_type,
-                        check_type,
-                        libelle,
-                    )
-                    create_alert_file(
-                        domain, check_type, error_msg, current_time, alert_folder
-                    )
-            # PING
-            elif check_type == "PING":
-                # For Windows, use '-n' instead of '-c'
-                param = "-n" if platform.system().lower() == "windows" else "-c"
-                command = ["ping", param, "1", domain]
-                try:
-                    output = subprocess.run(command, capture_output=True, text=True)
-                    if output.returncode == 0:
-                        logger.info(f"PING OK: {domain} is up")
-                    else:
-                        error_info = get_status_info(
-                            erreur_ping_file, output.returncode
-                        )
-                        error_msg = (
-                            f"{check_type} Alert: Failed to ping {domain} at {current_time}\n{error_info}"
-                        )
-                        logger.error(error_msg)
-                        send_email(
-                            from_email,
-                            password,
-                            to_email,
-                            domain,
-                            error_msg,
-                            current_time,
-                            event_type,
-                            check_type,
-                            libelle,
-                        )
-                        create_alert_file(
-                            domain, check_type, error_msg, current_time, alert_folder
-                        )
-                except subprocess.SubprocessError as e:
-                    error_msg = f"{check_type} Alert: Error while pinging {domain} at {current_time}\nError: {str(e)}"
-                    logger.error(error_msg)
-                    send_email(
-                        from_email,
-                        password,
-                        to_email,
-                        domain,
-                        error_msg,
-                        current_time,
-                        event_type,
-                        check_type,
-                        libelle,
-                    )
-                    create_alert_file(
-                        domain, check_type, error_msg, current_time, alert_folder
-                    )
-            else:
-                logger.error(f"Invalid protocol type: {check_type}")
-
-        # Wait for 5 minutes before next check
-        time.sleep(frequency)
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Surveille des domaines et affiche leur uptime."
+    )
+    parser.add_argument("--domains", required=True, help="Fichier texte des cibles")
+    parser.add_argument("--from-email", required=True, help="Adresse Gmail d'envoi")
+    parser.add_argument(
+        "--password",
+        nargs="?",
+        const="",
+        default=None,
+        help="Mot de passe d'application. Sans valeur, il est demandé au clavier.",
+    )
+    parser.add_argument(
+        "--frequency",
+        type=int,
+        default=300,
+        help="Secondes entre deux contrôles (défaut : 300)",
+    )
+    parser.add_argument("--host", default="127.0.0.1", help="Adresse de l'interface web")
+    parser.add_argument("--port", type=int, default=8080, help="Port de l'interface web")
+    parser.add_argument(
+        "--db",
+        default=str(ROOT / "data" / "uptime.db"),
+        help="Base SQLite des mesures",
+    )
+    parser.add_argument(
+        "--retain-days",
+        type=int,
+        default=30,
+        help="Jours d'historique conservés (défaut : 30)",
+    )
+    parser.add_argument(
+        "--no-dashboard",
+        action="store_true",
+        help="Ne lance que les contrôles, sans interface",
+    )
+    parser.add_argument(
+        "--no-browser",
+        action="store_true",
+        help="N'ouvre pas le navigateur automatiquement",
+    )
+    return parser
 
 
-# Example usage:
+def resolve_password(value: str | None) -> str:
+    if value:
+        return value
+    if sys.stdin.isatty():
+        typed = getpass.getpass("Mot de passe de l'e-mail d'envoi : ")
+        if typed:
+            return typed
+    logger.error(
+        "Mot de passe e-mail manquant. Passez-le avec --password, "
+        "ou lancez la commande dans un terminal pour le saisir."
+    )
+    raise SystemExit(1)
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(levelname)s - %(message)s",
+    )
+
+    domains = Path(args.domains).expanduser().resolve()
+    if not domains.is_file():
+        logger.error("Fichier de domaines introuvable : %s", domains)
+        return 1
+    if args.frequency < 5:
+        logger.error("La fréquence doit être d'au moins 5 secondes.")
+        return 1
+    if not 0 <= args.port <= 65535:
+        logger.error("Port invalide : %s", args.port)
+        return 1
+    if args.retain_days < 1:
+        logger.error("La rétention doit être d'au moins 1 jour.")
+        return 1
+
+    password = resolve_password(args.password)
+    db_path = Path(args.db).expanduser().resolve()
+    database = Database(db_path)
+    monitor = Monitor(
+        db=database,
+        domains_path=domains,
+        from_email=args.from_email,
+        password=password,
+        frequency=args.frequency,
+        retain_days=args.retain_days,
+    )
+    monitor.publish_targets()
+    logger.info("Mesures enregistrées dans %s", db_path)
+
+    if args.no_dashboard:
+        try:
+            monitor.run()
+        except KeyboardInterrupt:
+            logger.info("Arrêt demandé.")
+        finally:
+            monitor.stop()
+        return 0
+
+    worker = threading.Thread(target=_run_monitor, args=(monitor,), name="uptime-monitor", daemon=True)
+    worker.start()
+
+    def on_ready(url: str) -> None:
+        if args.no_browser or args.host not in {"127.0.0.1", "localhost", "::1"}:
+            return
+        threading.Thread(target=_open_browser, args=(url,), name="open-browser", daemon=True).start()
+
+    try:
+        serve(db_path, args.host, args.port, args.frequency, args.retain_days, on_ready=on_ready)
+    except KeyboardInterrupt:
+        logger.info("Arrêt demandé.")
+    finally:
+        monitor.stop()
+    return 0
+
+
+def _run_monitor(monitor: Monitor) -> None:
+    try:
+        monitor.run()
+    except Exception:
+        logger.exception("Le moniteur s'est arrêté.")
+
+
+def _open_browser(url: str) -> None:
+    time.sleep(0.4)
+    if _open_host_browser(url):
+        return
+    logger.info("Ouvrez %s dans le navigateur.", url)
+
+
+def _open_host_browser(url: str) -> bool:
+    if _is_wsl():
+        return _open_windows_browser(url)
+    try:
+        return bool(webbrowser.open(url))
+    except Exception:
+        return False
+
+
+def _is_wsl() -> bool:
+    if os.environ.get("WSL_DISTRO_NAME") or os.environ.get("WSL_INTEROP"):
+        return True
+    try:
+        return "microsoft" in Path("/proc/version").read_text(encoding="utf-8", errors="ignore").lower()
+    except OSError:
+        return False
+
+
+def _open_windows_browser(url: str) -> bool:
+    cmd = shutil.which("cmd.exe")
+    if not cmd:
+        return False
+    try:
+        completed = subprocess.run(
+            [cmd, "/c", "start", "", url],
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except OSError:
+        return False
+    return completed.returncode == 0
+
+
 if __name__ == "__main__":
-    domains_to_monitor = txt_to_list(args.domains)
-    from_email = args.from_email
-    password = (
-        args.password if args.password else getpass.getpass("Enter email password: ")
-    )  # Get password securely if not provided as argument jgka vvxm sitn vyau
-
-    check_domain_status(domains_to_monitor, from_email, password)
+    sys.exit(main())

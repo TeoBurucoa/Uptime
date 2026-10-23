@@ -1,71 +1,65 @@
 # Utilisation du script Uptime
 
-Ce script permet, à partir d'un fichier txt contenant les domaines à surveiller, d'envoyer des alertes par email si un des domaines n'est plus accessible
-par le biais d'un ping ou d'un http(s).
+Ce script lit un fichier texte de cibles, vérifie chacune par HTTP, HTTPS ou ping, et envoie un e-mail quand une cible tombe puis quand elle revient. Les mesures sont conservées dans une base SQLite et affichées dans une interface web : un graphique d'uptime par cible, et l'historique récent.
 
-Ce fichier txt doit être de la forme :  
-`Protocole | domaine | email | libellé`
+Le fichier texte a la forme :
 
-exemple du fichier txt:  
-`ping | cloud05.novaldi.fr | teoburu64@gmail.com | Exemple Surfrider`  
-`http | cloud05.novaldi.fr/xabixuri | teoburu64@gmail.com | Exemple2 CCI`
+`protocole | domaine | email | libellé`
+
+Exemple :
+
+```
+https | www.novaldi.com | vous@gmail.com | Site Novaldi
+ping | 85.31.155.17 | vous@gmail.com | Serveur IP
+```
+
+Les lignes vides et celles qui commencent par `#` sont ignorées.
 
 ---
 
-## Faire fonctionner le script
+## Lancer le script
 
-Valeurs par défaut au sein du code :  
-- frequency : 300
-- alert_folder : "alerts"
-- archive_folder : "archive"
-- event_type : "alert"
-- erreur_https_file : "erreur_https.txt"
-- erreur_ping_file : "erreur_ping.txt"
+Depuis la racine du projet :
 
-### Utilisation via Python
-
-Pour lancer la commande, il y a 3 arguments à passer :  
-
-`--domains` : le chemin vers le fichier txt contenant les domaines à surveiller  
-`--from-email` : l'email à partir duquel les alertes seront envoyées  
-`--password` (optionnel) : le mot de passe de l'email à partir duquel les alertes seront envoyées   
-
-Dans la mesure du possible, il est conseillé de ne pas passer le mot de passe en argument, mais de le rentrer ensuite
-lorsqu'il est demandé au moment de la commande.
-
-exemple de commande :  
-`python main.py --domains domains.txt --from-email teoburu64@gmail.com --password`
-
-### Utilisation via Docker
-
-Les arguments doivent être rentrés dans le fichier `.env` sous la forme:  
 ```
-FROM_EMAIL=  
-EMAIL_PASSWORD=  
+python python_files/main.py --domains txt_files/domains.txt --from-email vous@gmail.com
+```
+
+Le mot de passe d'application Gmail est demandé ensuite. On peut aussi le passer avec `--password`, ce qui le laisse visible dans l'historique du shell.
+
+Valeurs par défaut :
+
+- contrôle toutes les 300 secondes (`--frequency`)
+- interface sur http://127.0.0.1:8080 (`--host`, `--port`)
+- historique dans `data/uptime.db`, conservé 30 jours (`--db`, `--retain-days`)
+
+Le navigateur s'ouvre sur l'interface. Sous WSL, c'est le navigateur de Windows. `--no-browser` laisse seulement l'URL dans le terminal. `--no-dashboard` ne lance que les contrôles.
+
+L'interface se met à jour toute seule. Le pourcentage est calculé sur les 24 dernières heures. Le graphique et les cases de couleur montrent les 60 derniers contrôles.
+
+## Docker
+
+Renseigner `.env` :
+
+```
+FROM_EMAIL=
+EMAIL_PASSWORD=
 DOMAINS_FILE=
 ```
-Les commandes à rentrer sont:  
-`docker build . -t <nom de l'image>`  
-`docker run  --env-file .env <nom de l'image>`
 
----
+Puis :
 
-## Explication générale du script :
+```
+docker build . -t uptime
+docker run --env-file .env -p 8080:8080 uptime
+```
 
-Le processus de vérification du fonctionnement de site internet est légèrement différente pour un HTTP(S) ou un PING
+L'interface est alors sur http://127.0.0.1:8080.
 
-Le script se lance et va lire le fichier txt passé en argument.
-Il va lire les lignes du fichier txt et va les stocker dans une liste.
-Pour chaque nom de donmaine ou adresse ip: (ligne 61)
-- si le nom de domaine a déjà été repéré comme étant en erreur: (ligne 70)
-    - si le domaine est de nouveau accessible: (ligne 80 et 108)
-        - il va envoyer un email de recovery (send_email())
-        - il va déplacer le fichier d'erreur dans le dossier archive (move_file_from_alert_to_archive())
-    - si le domaine est toujours en erreur:
-        - Il ne va rien faire
-- si le nom de domaine n'a pas encore été repéré comme étant en erreur:
-    - si le domaine est accessible:
-        - il ne va rien faire
-    - si le domaine est en erreur:
-        - il va créer un fichier d'alerte (create_alert_file())
-        - il va envoyer un email d'alerte (send_email())    
+## Déroulement d'un contrôle
+
+1. Le fichier de cibles est relu, donc une modification est prise en compte au cycle suivant.
+2. Chaque cible est testée une fois.
+3. La mesure est enregistrée.
+4. Au premier échec, un e-mail d'alerte part. Tant que la cible reste en panne, aucun nouvel e-mail n'est envoyé.
+5. Au retour, un e-mail indique la durée de l'incident.

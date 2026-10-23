@@ -16,8 +16,10 @@ RUN pip install --no-cache-dir -r python_files/requirements.txt
 # Copy all project files
 COPY . .
 
-# Create directories for alerts and archive
-RUN mkdir -p alerts archive email_fail
+# Create directories for history and failed emails
+RUN mkdir -p data email_fail
+
+EXPOSE 8080
 
 # Command to run the script
-CMD ["/bin/sh", "-c", "python python_files/main.py --domains \"$DOMAINS_FILE\" --from-email \"$FROM_EMAIL\" --password \"$EMAIL_PASSWORD\""]
+CMD ["/bin/sh", "-c", "python python_files/main.py --domains \"$DOMAINS_FILE\" --from-email \"$FROM_EMAIL\" --password \"$EMAIL_PASSWORD\" --host 0.0.0.0 --port 8080 --no-browser"]

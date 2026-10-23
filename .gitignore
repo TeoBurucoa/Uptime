@@ -3,3 +3,5 @@ __pycache__/
 alerts/
 archive/
 email_fail/
+data/
+*.db
