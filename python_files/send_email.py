@@ -1,16 +1,17 @@
-import smtplib
-from email.mime.text import MIMEText
+from __future__ import annotations
+
 import logging
+import smtplib
+import socket
+import ssl
+from email.mime.text import MIMEText
 
 from manage_files import create_email_fail_file
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
-    handlers=[logging.StreamHandler()],  # This will output to terminal
-)
 logger = logging.getLogger(__name__)
+
+SMTP_SERVER = "smtp.gmail.com"
+SMTP_PORT = 587
 
 
 def send_email(
@@ -23,55 +24,81 @@ def send_email(
     event_type: str,
     check_type: str,
     libelle: str,
-):
-    """If the event type is alert: Send alert email when domain is down or returns non-200 status or ping does not work
-    If the event type is recovery: Send recovery email when domain is up or returns 200 status or ping works
-    """
-
+    fail_folder: str | None = None,
+) -> bool:
+    """Envoie une alerte ou un message de rétablissement via Gmail."""
     if event_type == "alert":
-        # subject = f"Alert: {libelle} - {domain} is having issues - {check_type} "
         subject = f"Alerte : {libelle} - {domain} est DOWN - {check_type}"
-        body = f"{message}"
     elif event_type == "recovery":
-        # subject = f"Recovery: {libelle} - {domain} is back up"
         subject = f"UP : {libelle} - {domain} est de nouveau UP - {check_type}"
-        body = f"{message}"
+    else:
+        logger.error("Type d'événement inconnu : %s", event_type)
+        return False
 
-    # SMTP Configuration for Outlook
-    smtp_server_config(
-        from_email, password, to_email, subject, body, current_time, event_type
-    )
-
-
-def smtp_server_config(
-    from_email: str,
-    password: str,
-    to_email: str,
-    subject: str,
-    body: str,
-    current_time: str,
-    event_type: str,
-):
-    msg = MIMEText(body)
+    msg = MIMEText(message, "plain", "utf-8")
     msg["Subject"] = subject
     msg["From"] = from_email
     msg["To"] = to_email
 
-    # SMTP Configuration for Outlook
-    SMTP_SERVER = "smtp.gmail.com"
-    SMTP_PORT = 587
-    SMTP_USERNAME = from_email  # Your Gmail email
-    SMTP_PASSWORD = password  # Your Gmail app password
-    try:
-        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
-            server.connect(SMTP_SERVER, SMTP_PORT)
-            server.starttls()  # Enable TLS
-            server.login(SMTP_USERNAME, SMTP_PASSWORD)
-            server.send_message(msg)
-        logger.info(f"{event_type} email sent to {to_email}")
-    except Exception as e:
-        error_msg = f"Failed to send {event_type} email to {to_email}: {str(e)}"
-        logger.error(error_msg)
-        create_email_fail_file(error_msg, current_time, to_email)
+    last_error = "Gmail a fermé la connexion avant la fin de l'envoi"
+    for attempt in range(2):
+        try:
+            _deliver(from_email, password, msg)
+            logger.info("E-mail %s envoyé à %s", event_type, to_email)
+            return True
+        except smtplib.SMTPAuthenticationError as exc:
+            last_error = f"mot de passe d'application refusé ({exc.smtp_code})"
+            break
+        except smtplib.SMTPServerDisconnected:
+            last_error = "Gmail a fermé la connexion avant la fin de l'envoi"
+            if attempt == 0:
+                logger.info("Nouvel essai d'envoi vers %s.", to_email)
+                continue
+        except Exception as exc:
+            last_error = str(exc)
+            break
 
-    return msg, SMTP_SERVER, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD
+    error_msg = f"Échec de l'e-mail {event_type} vers {to_email} : {last_error}"
+    logger.error(error_msg)
+    create_email_fail_file(error_msg, current_time, to_email, fail_folder)
+    return False
+
+
+def _deliver(from_email: str, password: str, msg: MIMEText) -> None:
+    context = ssl.create_default_context()
+    with _open_smtp(timeout=20) as server:
+        server.ehlo()
+        server.starttls(context=context)
+        server.ehlo()
+        server.login(from_email, password)
+        server.send_message(msg)
+
+
+def _open_smtp(timeout: float) -> smtplib.SMTP:
+    """Ouvre une session Gmail en IPv4.
+
+    Sous WSL, IPv6 vers smtp.gmail.com est souvent injoignable. Le client
+    SMTP standard peut alors garder une socket déjà fermée.
+    """
+    try:
+        return _SMTP4(SMTP_SERVER, SMTP_PORT, timeout=timeout)
+    except OSError as exc:
+        logger.info("IPv4 indisponible vers %s (%s), nouvel essai.", SMTP_SERVER, exc)
+        return smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=timeout)
+
+
+class _SMTP4(smtplib.SMTP):
+    def _get_socket(self, host, port, timeout):
+        last_error: Exception | None = None
+        records = socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM)
+        for family, socktype, proto, _canon, sockaddr in records:
+            sock = socket.socket(family, socktype, proto)
+            if timeout is not None:
+                sock.settimeout(timeout)
+            try:
+                sock.connect(sockaddr)
+                return sock
+            except OSError as exc:
+                last_error = exc
+                sock.close()
+        raise OSError(f"Connexion IPv4 impossible vers {host}:{port}") from last_error
